@@ -62,25 +62,6 @@ crypto-predict/
 
 All API calls use **in-memory caching** (30-second TTL) to respect rate limits.
 
----
-
-## 🚀 Deployment (GitHub Pages)
-
-This site is served as pure static HTML/CSS/JS from the `main` branch root `/`.
-
-**Automatic deployment:**
-1. Push to `main` branch
-2. GitHub Pages serves the updated site at `https://1yuub.github.io/crypto-predict`
-
-**To enable GitHub Pages:**
-- Go to repository **Settings → Pages**
-- Source: **Deploy from a branch**
-- Branch: `main`, Folder: `/ (root)`
-- Save — the site will be live within a minute.
-
-No build step, no Node.js, no CI required.
-
----
 
 ## 🧠 AI Prediction Engine
 
