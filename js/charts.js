@@ -83,10 +83,22 @@ export function renderPriceChart(canvasId, historicalData, predictedData = []) {
 
   const { labels, prices } = historicalData;
 
-  // Build future labels
-  const lastDate  = labels.length ? new Date(labels[labels.length - 1] + ' 2024') : new Date();
+  // Build future date labels (proper dates, not hardcoded 2024)
+  const lastDate = labels.length
+    ? new Date(labels[labels.length - 1])
+    : new Date();
+  // If the date is invalid (e.g. "Dec 25"), try appending current year
+  let lastDateMs = lastDate;
+  if (isNaN(lastDate.getTime()) && labels.length) {
+    lastDateMs = new Date(labels[labels.length - 1] + ' ' + new Date().getFullYear());
+  }
+  // Final fallback to today if still invalid
+  if (isNaN(lastDateMs.getTime())) {
+    lastDateMs = new Date();
+  }
+
   const futureLabels = predictedData.map((_, i) => {
-    const d = new Date(lastDate);
+    const d = new Date(lastDateMs);
     d.setDate(d.getDate() + i + 1);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   });
@@ -96,7 +108,7 @@ export function renderPriceChart(canvasId, historicalData, predictedData = []) {
   // Historical dataset: fill with null for future slots
   const histData = [...prices, ...Array(futureLabels.length).fill(null)];
 
-  // Predicted dataset: fill with null for historical slots, then predictions
+  // Predicted dataset: null for all historical positions except last (connect lines)
   const predData = [
     ...Array(prices.length - 1).fill(null),
     prices[prices.length - 1], // connect at last historical point
@@ -353,4 +365,86 @@ export function renderMAChart(canvasId, labels, prices, ma7, ma25, ma99) {
 /* ------------------------------------------------------------------ */
 export function destroyChart(canvasId) {
   _destroy(canvasId);
+}
+
+/* ------------------------------------------------------------------ */
+/* Live chart: append a single price point without full re-render      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Append a single new price point to a live chart (zero-flicker).
+ * Shifts the window if more than maxPoints are accumulated.
+ * @param {string} canvasId
+ * @param {number} price
+ * @param {string} label   e.g. "14:35:22"
+ * @param {number} maxPoints  max data points to keep (default 200)
+ */
+export function appendLivePricePoint(canvasId, price, label, maxPoints = 200) {
+  const chart = _instances.get(canvasId);
+  if (!chart) return;
+
+  chart.data.labels.push(label);
+  chart.data.datasets[0].data.push(price);
+
+  // Shift window if too many points
+  if (chart.data.labels.length > maxPoints) {
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+
+  // 'none' mode = no animation, minimal CPU
+  chart.update('none');
+}
+
+/**
+ * Initialise a bare live-tick chart (for the real-time 1s price stream).
+ * Call once; then use appendLivePricePoint to feed data.
+ * @param {string} canvasId
+ */
+export function initLiveChart(canvasId) {
+  _destroy(canvasId);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Live Price',
+        data:  [],
+        borderColor:     CYAN,
+        borderWidth:     1.5,
+        pointRadius:     0,
+        tension:         0.2,
+        fill: true,
+        backgroundColor: (context) => {
+          const gradient = context.chart.ctx.createLinearGradient(0, 0, 0, context.chart.height);
+          gradient.addColorStop(0, 'rgba(0,245,255,0.12)');
+          gradient.addColorStop(1, 'rgba(0,245,255,0.0)');
+          return gradient;
+        }
+      }]
+    },
+    options: {
+      ..._darkDefaults(),
+      animation: false,
+      plugins: {
+        ..._darkDefaults().plugins,
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          grid:  { display: false },
+          ticks: { color: TEXT, maxRotation: 0, maxTicksLimit: 6, font: { size: 10 } }
+        },
+        y: {
+          grid:  { color: GRID },
+          ticks: { color: TEXT, callback: v => formatPrice(v), font: { size: 10 } }
+        }
+      }
+    }
+  });
+
+  return _store(canvasId, chart);
 }

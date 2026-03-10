@@ -22,6 +22,20 @@ export function predictPrices(historicalPrices, steps = 7) {
     return { prices: [], confidence: 0 };
   }
 
+  // Fallback: simple linear extrapolation when there are fewer than 15 prices
+  if (historicalPrices.length < 15) {
+    const prices = historicalPrices;
+    const n = prices.length;
+    const lastPrice = prices[n - 1];
+    // Average daily change over available data
+    const avgChange = n > 1 ? (prices[n - 1] - prices[0]) / (n - 1) : 0;
+    const predicted = [];
+    for (let s = 1; s <= steps; s++) {
+      predicted.push(Math.max(0, lastPrice + avgChange * s));
+    }
+    return { prices: predicted, confidence: 30 };
+  }
+
   const prices = historicalPrices.slice(-90); // cap at 90 data points
   const n      = prices.length;
 
@@ -298,4 +312,54 @@ function _ema(data, period) {
     ema.push(data[i] * k + ema[ema.length - 1] * (1 - k));
   }
   return ema;
+}
+
+/* ------------------------------------------------------------------ */
+/* Fast micro-prediction for 1s live updates                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Predict next-tick price from recent live price ticks (1s WS feed).
+ * Uses exponentially weighted average of velocity samples.
+ * @param {number[]} livePriceTicks  Array of recent prices (oldest → newest)
+ * @returns {{ nextPrice: number, direction: 'up'|'down'|'flat', microConfidence: number }}
+ */
+export function predictNextTick(livePriceTicks) {
+  if (!livePriceTicks || livePriceTicks.length < 2) {
+    const last = livePriceTicks && livePriceTicks.length ? livePriceTicks[livePriceTicks.length - 1] : 0;
+    return { nextPrice: last, direction: 'flat', microConfidence: 0 };
+  }
+
+  const ticks = livePriceTicks.slice(-60); // cap at last 60 ticks
+  const n     = ticks.length;
+
+  // Compute velocity samples (price delta per tick)
+  const velocities = [];
+  for (let i = 1; i < n; i++) {
+    velocities.push(ticks[i] - ticks[i - 1]);
+  }
+
+  // Exponentially weighted average of last 5 velocities
+  const recent = velocities.slice(-5);
+  let ewv = 0;
+  let wSum = 0;
+  for (let i = 0; i < recent.length; i++) {
+    const w = Math.exp(0.4 * i); // more weight to recent
+    ewv  += w * recent[i];
+    wSum += w;
+  }
+  const avgVelocity = wSum > 0 ? ewv / wSum : 0;
+
+  const lastPrice = ticks[n - 1];
+  const nextPrice = Math.max(0, lastPrice + avgVelocity);
+
+  const direction =
+    Math.abs(avgVelocity) < lastPrice * 0.0001 ? 'flat'
+    : avgVelocity > 0 ? 'up' : 'down';
+
+  // Confidence based on velocity consistency
+  const allSameDir = recent.every(v => v * avgVelocity >= 0);
+  const microConfidence = allSameDir ? Math.min(80, 40 + recent.length * 8) : 20;
+
+  return { nextPrice, direction, microConfidence };
 }

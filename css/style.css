@@ -977,3 +977,119 @@ footer {
 .p-0 { padding: 0 !important; }
 .rounded { border-radius: var(--radius); }
 .border-b { border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 0.75rem; }
+
+/* ---------- Live / WebSocket UI ---------- */
+
+/* Pulsing live badge */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--neon-red);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 20px;
+  padding: 0.15rem 0.55rem;
+  animation: pulse-red 2s infinite;
+}
+
+.forecast-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--neon-purple);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 20px;
+  padding: 0.15rem 0.55rem;
+  margin-bottom: 0.3rem;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* Price flash animations */
+.price-flash-up {
+  animation: flash-green 0.3s ease-out;
+}
+.price-flash-down {
+  animation: flash-red 0.3s ease-out;
+}
+
+@keyframes flash-green {
+  0%   { background: rgba(34, 197, 94, 0.25); }
+  100% { background: transparent; }
+}
+
+@keyframes flash-red {
+  0%   { background: rgba(239, 68, 68, 0.25); }
+  100% { background: transparent; }
+}
+
+/* Navbar status dot */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  cursor: default;
+}
+.status-live    { background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green); animation: pulse-green 2s infinite; }
+.status-delayed { background: var(--neon-yellow); }
+.status-offline { background: var(--neon-red); }
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* WS status dot in dashboard header */
+.ws-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  cursor: default;
+}
+.ws-live    { background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green); animation: pulse-green 2s infinite; }
+.ws-delayed { background: var(--neon-yellow); }
+.ws-offline { background: var(--neon-red); }
+
+/* Prediction card 7d special style */
+.prediction-card-7d {
+  border-color: rgba(168, 85, 247, 0.3);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.06), rgba(17, 24, 39, 0.7));
+}
+
+/* Hero live BTC ticker */
+.hero-btc-live {
+  display: inline-block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--neon-cyan);
+  background: rgba(0, 245, 255, 0.06);
+  border: 1px solid rgba(0, 245, 255, 0.18);
+  border-radius: 20px;
+  padding: 0.3rem 1rem;
+  margin-bottom: 1.25rem;
+  font-family: 'Courier New', monospace;
+}
+
+/* Stale data tag */
+.stale-tag {
+  font-size: 0.65rem;
+  color: var(--neon-yellow);
+  margin-left: 0.25rem;
+}
+
+/* Quick-stat skeleton */
+.quick-stat-skeleton {
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

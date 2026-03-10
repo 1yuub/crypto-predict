@@ -31,6 +31,7 @@
       <a class="nav-link" href="index.html">Home</a>
       <a class="nav-link active" href="dashboard.html">Dashboard</a>
       <a class="nav-link" href="donate.html">Donate</a>
+      <span id="status-dot" class="status-dot status-delayed" title="Connecting…"></span>
       <a class="btn btn-donate btn-sm" href="donate.html">💚 Donate</a>
     </div>
   </nav>
@@ -43,10 +44,12 @@
     <!-- Dashboard header bar -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem">
       <h2 id="coin-name" style="font-size:1.25rem">Bitcoin (BTC)</h2>
-      <div style="display:flex;align-items:center;gap:1rem">
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <span id="ws-status" class="ws-status-dot ws-delayed" title="WebSocket: Connecting"></span>
+        <span id="last-updated" style="font-size:0.75rem;color:var(--text-muted)">Last updated: —</span>
         <div class="refresh-timer">
           <div class="refresh-dot"></div>
-          <span>Auto-refresh in <strong id="refresh-countdown">30s</strong></span>
+          <span>Refresh in <strong id="refresh-countdown">60s</strong></span>
         </div>
         <button class="btn btn-ghost btn-sm" id="manual-refresh-btn" onclick="window.location.reload()">🔄 Refresh</button>
       </div>
@@ -165,6 +168,17 @@
           <div class="section-title mb-2"><span>〰️</span>Moving Averages</div>
           <div class="chart-container" style="height:180px">
             <canvas id="ma-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Live 1s tick chart -->
+        <div class="card" style="border-color:rgba(0,245,255,0.2)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+            <div class="section-title"><span>⚡</span>Live Price Stream</div>
+            <span class="live-badge">🔴 LIVE</span>
+          </div>
+          <div class="chart-container" style="height:140px">
+            <canvas id="live-chart"></canvas>
           </div>
         </div>
 

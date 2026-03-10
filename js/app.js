@@ -7,14 +7,17 @@
 
 import {
   fetchCoinList, fetchMarketData, fetchHistoricalPrices,
-  fetchTrending, fetchTopCoins, clearCache
+  fetchTrending, fetchTopCoins, clearCache,
+  fetchCoinGeckoSimplePrice, startBinanceWS, stopBinanceWS
 } from './api.js';
 import {
   predictPrices, calculateRSI, calculateMACD,
-  calculateMovingAverage, calculateVolatility, generateSignal, confidenceScore
+  calculateMovingAverage, calculateVolatility, generateSignal, confidenceScore,
+  predictNextTick
 } from './prediction.js';
 import {
-  renderPriceChart, renderVolumeChart, renderRSIChart, renderMAChart
+  renderPriceChart, renderVolumeChart, renderRSIChart, renderMAChart,
+  appendLivePricePoint, initLiveChart
 } from './charts.js';
 import { renderFearGreedWidget, computeSentiment } from './sentiment.js';
 import { detectWhaleActivity, getGainersLosers } from './whale.js';
@@ -30,7 +33,18 @@ let coinList        = [];
 let selectedCoin    = { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin' };
 let currentDays     = 30;
 let refreshTimer    = null;
-let refreshCountdown = 30;
+let refreshCountdown = 60;
+let _liveFeedActive = false;
+let _livePriceTicks = [];
+let _quickStatsTimer = null;
+
+const SIMPLE_PRICE_NAME_MAP = {
+  bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL',
+  dogecoin: 'DOGE', binancecoin: 'BNB'
+};
+let _lastLivePrice  = 0;
+let _lastWsUpdate   = 0;
+let _liveFeedTimer  = null;
 const WALLET_ADDRESS = 'FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT';
 
 /* ------------------------------------------------------------------ */
@@ -143,7 +157,7 @@ function initCopyWalletButtons() {
 /* Index Page                                                           */
 /* ------------------------------------------------------------------ */
 async function initIndexPage() {
-  // Load quick stats (top 5)
+  // Load quick stats (top 5) with skeleton already in HTML
   renderQuickStats();
 
   // Hero search autocomplete
@@ -151,7 +165,13 @@ async function initIndexPage() {
   const heroDrop  = document.getElementById('hero-dropdown');
   if (heroInput && heroDrop) {
     heroInput.addEventListener('focus', async () => {
-      if (!coinList.length) coinList = await fetchCoinList();
+      if (!coinList.length) {
+        coinList = await fetchCoinList();
+        if (!coinList.length) {
+          // Show graceful message if coin list is unavailable
+          heroInput.placeholder = 'Search unavailable — try again later';
+        }
+      }
     });
 
     const debouncedHero = debounce(async (e) => {
@@ -180,21 +200,74 @@ async function initIndexPage() {
       }
     });
   }
+
+  // Auto-refresh quick-stats every 10 seconds
+  if (_quickStatsTimer) clearInterval(_quickStatsTimer);
+  _quickStatsTimer = setInterval(() => renderQuickStats(), 10_000);
+
+  // Start Binance WS for BTC live price in hero ticker
+  const heroBtcEl = document.getElementById('hero-btc-live');
+  if (heroBtcEl) {
+    heroBtcEl.textContent = 'BTC: Loading…';
+    startBinanceWS('BTC', (tick) => {
+      if (!tick) return;
+      const priceStr = formatPrice(tick.price);
+      const chgStr   = (tick.change24h >= 0 ? '+' : '') + tick.change24h.toFixed(2) + '%';
+      heroBtcEl.textContent = `BTC: ${priceStr} (${chgStr})`;
+      heroBtcEl.className   = 'hero-btc-live ' + (tick.change24h >= 0 ? 'text-green' : 'text-red');
+    });
+  }
+
+  // Update navbar status indicator
+  _setStatusIndicator('live');
 }
 
 async function renderQuickStats() {
   const container = document.getElementById('quick-stats');
   if (!container) return;
 
-  const coins = await fetchTopCoins(5);
-  if (!coins || !coins.length) return;
+  // Show skeleton while loading
+  container.innerHTML = Array(5).fill(
+    `<div class="quick-stat-item quick-stat-skeleton">
+       <span class="skeleton skeleton-text" style="width:80px;height:0.9rem;display:inline-block"></span>
+     </div>`
+  ).join('');
+
+  // 1. Try fetchTopCoins
+  let coins = await fetchTopCoins(5);
+
+  // 2. If that returns null/empty, fallback to simplePrice
+  if (!coins || !Array.isArray(coins) || coins.length === 0) {
+    const simpleIds = ['bitcoin', 'ethereum', 'solana', 'dogecoin', 'binancecoin'];
+    const sp = await fetchCoinGeckoSimplePrice(simpleIds);
+    if (sp) {
+      coins = simpleIds
+        .filter(id => sp[id])
+        .map(id => ({
+          symbol:                        SIMPLE_PRICE_NAME_MAP[id] || id.slice(0, 4).toUpperCase(),
+          current_price:                 sp[id].usd,
+          price_change_percentage_24h:   sp[id].usd_24h_change
+        }));
+    }
+  }
+
+  // 3. If both fail, show placeholder with warning
+  if (!coins || !coins.length) {
+    container.innerHTML = `
+      <div class="quick-stat-item" style="grid-column:1/-1;text-align:center;color:var(--neon-yellow);font-size:0.8rem">
+        ⚠️ Live data temporarily unavailable
+      </div>`;
+    _setStatusIndicator('offline');
+    return;
+  }
 
   container.innerHTML = coins.map(coin => {
     const chg = formatPercent(coin.price_change_percentage_24h);
+    const staleTag = coin._stale ? ' <span class="stale-tag">⚠️ stale</span>' : '';
     return `
       <div class="quick-stat-item">
-        <span class="quick-stat-name">${coin.symbol.toUpperCase()}</span>
-        <span class="quick-stat-price">${formatPrice(coin.current_price)}</span>
+        <span class="quick-stat-name">${(coin.symbol || '').toUpperCase()}</span>
+        <span class="quick-stat-price">${formatPrice(coin.current_price)}${staleTag}</span>
         <span class="quick-stat-change ${chg.cls}">${chg.text}</span>
       </div>
     `;
@@ -242,6 +315,7 @@ async function initDashboardPage() {
       document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentDays = parseInt(btn.dataset.days, 10);
+      stopLiveFeed();
       loadDashboardData(selectedCoin.id, selectedCoin.symbol);
     });
   });
@@ -249,7 +323,7 @@ async function initDashboardPage() {
   // Initial load
   await loadDashboardData(selectedCoin.id, selectedCoin.symbol);
 
-  // Auto-refresh
+  // Auto-refresh at 60s
   startAutoRefresh();
 }
 
@@ -270,6 +344,7 @@ function showDashDropdown(coins) {
       const dashInput = document.getElementById('dash-search');
       if (dashInput) dashInput.value = coin.name;
       closeDashDropdown();
+      stopLiveFeed();
       loadDashboardData(coin.id, coin.symbol);
     });
     dd.appendChild(item);
@@ -319,6 +394,9 @@ async function loadDashboardData(coinId, symbol = '') {
     const ma99 = calculateMovingAverage(prices, 99);
     renderMAChart('ma-chart', labels, prices, ma7, ma25, ma99);
 
+    // Initialise live tick chart
+    initLiveChart('live-chart');
+
     // ------ Right Panel – Predictions ------
     const macd  = calculateMACD(prices);
     const rsi   = rsiArr.length ? rsiArr[rsiArr.length - 1] : 50;
@@ -337,6 +415,10 @@ async function loadDashboardData(coinId, symbol = '') {
     renderTrendingPanel(trending?.coins ?? []);
     const whaleAlerts = await detectWhaleActivity(symbol || marketData.symbol?.toUpperCase() || 'BTC');
     renderWhaleAlerts(whaleAlerts);
+
+    // ------ Start live WebSocket feed ------
+    _livePriceTicks = prices.slice(-60); // seed with historical prices
+    startLiveFeed(coinId, symbol || marketData.symbol?.toUpperCase() || 'BTC', prices, prediction, rsi, macd, ma7v, ma25v, conf);
 
   } catch (err) {
     console.error('Dashboard load error:', err);
@@ -411,6 +493,7 @@ function renderTrendingCoins(coins) {
 
   window.addEventListener('selectCoin', e => {
     selectedCoin = e.detail;
+    stopLiveFeed();
     loadDashboardData(e.detail.id, e.detail.symbol);
   }, { once: false });
 }
@@ -422,9 +505,12 @@ function renderPredictionCards(currentPrice, prices, prediction, rsi, macd, ma7,
   const container = document.getElementById('prediction-cards');
   if (!container) return;
 
-  const pred1h = currentPrice * (1 + _hourlyDrift(prices) * 1);
+  const pred1h  = currentPrice * (1 + _hourlyDrift(prices) * 1);
   const pred24h = prediction.prices[0] ?? currentPrice;
-  const pred7d  = prediction.prices[6] ?? currentPrice;
+  // Clamp index so pred7d is always valid even if fewer than 7 predictions
+  const pred7d  = prediction.prices.length > 0
+    ? prediction.prices[Math.min(6, prediction.prices.length - 1)]
+    : currentPrice;
 
   const timeframes = [
     { label: '1 Hour',  price: pred1h,  conf: Math.round(conf * 0.9) },
@@ -432,17 +518,25 @@ function renderPredictionCards(currentPrice, prices, prediction, rsi, macd, ma7,
     { label: '7 Days',  price: pred7d,  conf: Math.round(conf * 0.75) }
   ];
 
-  container.innerHTML = timeframes.map(tf => {
+  container.innerHTML = timeframes.map((tf, idx) => {
     const chg    = ((tf.price - currentPrice) / currentPrice) * 100;
     const chgFmt = formatPercent(chg);
     const signal = generateSignal(rsi, macd, currentPrice, ma7, ma25);
     const sigCls = signal === 'BUY' ? 'signal-buy' : signal === 'SELL' ? 'signal-sell' : 'signal-hold';
     const sigEmoji = signal === 'BUY' ? '🟢' : signal === 'SELL' ? '🔴' : '🟡';
+    // 1h card gets live badge, 7d card gets forecast label
+    const topBadge = idx === 0
+      ? '<span id="live-1h-badge" class="live-badge">🔴 LIVE</span>'
+      : idx === 2
+      ? '<span class="forecast-badge">📅 7-Day AI Forecast</span>'
+      : '';
+    const cardClass = idx === 2 ? 'prediction-card prediction-card-7d animate-fade-in' : 'prediction-card animate-fade-in';
     return `
-      <div class="prediction-card animate-fade-in">
+      <div class="${cardClass}">
+        ${topBadge}
         <div class="prediction-timeframe">Next ${tf.label}</div>
-        <div class="prediction-price">${formatPrice(tf.price)}</div>
-        <div class="prediction-change ${chgFmt.cls}">${chgFmt.text}</div>
+        <div class="prediction-price" ${idx === 0 ? 'id="pred-1h-price"' : ''}>${formatPrice(tf.price)}</div>
+        <div class="prediction-change ${chgFmt.cls}" ${idx === 0 ? 'id="pred-1h-change"' : ''}>${chgFmt.text}</div>
         <div class="confidence-bar-wrap">
           <div class="confidence-label"><span>Confidence</span><span>${tf.conf}%</span></div>
           <div class="confidence-bar"><div class="confidence-fill" style="width:${tf.conf}%"></div></div>
@@ -569,7 +663,7 @@ function renderWhaleAlerts(alerts) {
 /* ------------------------------------------------------------------ */
 function startAutoRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
-  refreshCountdown = 30;
+  refreshCountdown = 60;
 
   refreshTimer = setInterval(async () => {
     refreshCountdown--;
@@ -577,11 +671,140 @@ function startAutoRefresh() {
     if (el) el.textContent = refreshCountdown + 's';
 
     if (refreshCountdown <= 0) {
-      refreshCountdown = 30;
+      refreshCountdown = 60;
       clearCache();
+      stopLiveFeed();
       await loadDashboardData(selectedCoin.id, selectedCoin.symbol);
     }
   }, 1000);
+}
+
+/* ------------------------------------------------------------------ */
+/* Live WebSocket Feed                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Start the Binance WebSocket live feed for the dashboard.
+ * Updates price display, live chart, 1h prediction, and last-updated counter.
+ */
+function startLiveFeed(coinId, symbol, historicalPrices, prediction, rsi, macd, ma7v, ma25v, conf) {
+  stopLiveFeed();
+  _liveFeedActive = true;
+  _setStatusIndicator('live');
+
+  // "Last updated" counter
+  let lastUpdatedSecs = 0;
+  _liveFeedTimer = setInterval(() => {
+    lastUpdatedSecs++;
+    const el = document.getElementById('last-updated');
+    if (el) el.textContent = `Last updated: ${lastUpdatedSecs}s ago`;
+  }, 1000);
+
+  startBinanceWS(symbol, (tick) => {
+    if (!tick) {
+      // WS error — fall back to yellow delayed indicator
+      _setStatusIndicator('delayed');
+      return;
+    }
+
+    const livePrice = tick.price;
+    const now       = Date.now();
+
+    // Throttle: skip frames that are too close together (<200ms)
+    if (now - _lastWsUpdate < 200) return;
+    _lastWsUpdate = now;
+
+    // Accumulate ticks
+    _livePriceTicks.push(livePrice);
+    if (_livePriceTicks.length > 200) _livePriceTicks.shift();
+
+    // -- Price display flash animation --
+    const priceEl = document.getElementById('price-display');
+    if (priceEl) {
+      const direction = livePrice > _lastLivePrice ? 'up'
+        : livePrice < _lastLivePrice ? 'down' : null;
+
+      const chg24h = tick.change24h ?? 0;
+      const chgFmt = formatPercent(chg24h);
+      priceEl.innerHTML = `
+        <div class="price-main">${formatPrice(livePrice)}</div>
+        <div>
+          <span class="price-change-badge ${chg24h >= 0 ? 'text-green' : 'text-red'}"
+                style="background:${chg24h >= 0 ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}">
+            ${chgFmt.text}
+          </span>
+          <span id="live-price-badge" class="live-badge">🔴 LIVE</span>
+        </div>
+      `;
+
+      if (direction) {
+        const cls = direction === 'up' ? 'price-flash-up' : 'price-flash-down';
+        priceEl.classList.add(cls);
+        setTimeout(() => priceEl.classList.remove(cls), 300);
+      }
+    }
+
+    // -- 1h prediction update (only the price, not full panel) --
+    const pred1hNew = livePrice * (1 + _hourlyDrift(historicalPrices));
+    const p1hEl = document.getElementById('pred-1h-price');
+    if (p1hEl) p1hEl.textContent = formatPrice(pred1hNew);
+    const p1hChgEl = document.getElementById('pred-1h-change');
+    if (p1hChgEl) {
+      const c = ((pred1hNew - livePrice) / livePrice) * 100;
+      const f = formatPercent(c);
+      p1hChgEl.textContent = f.text;
+      p1hChgEl.className   = `prediction-change ${f.cls}`;
+    }
+
+    // -- Append to live chart --
+    const now2 = new Date();
+    const timeLabel = now2.toLocaleTimeString('en-US', { hour12: false });
+    appendLivePricePoint('live-chart', livePrice, timeLabel, 60);
+
+    // -- Reset last-updated counter --
+    lastUpdatedSecs = 0;
+    const luEl = document.getElementById('last-updated');
+    if (luEl) luEl.textContent = 'Last updated: just now';
+
+    // -- WS status indicator --
+    const wsEl = document.getElementById('ws-status');
+    if (wsEl) {
+      wsEl.className = 'ws-status-dot ws-live';
+      wsEl.title = 'WebSocket: Live';
+    }
+
+    _lastLivePrice = livePrice;
+  });
+}
+
+/**
+ * Stop the Binance WebSocket live feed.
+ */
+function stopLiveFeed() {
+  if (_liveFeedTimer) {
+    clearInterval(_liveFeedTimer);
+    _liveFeedTimer = null;
+  }
+  _liveFeedActive = false;
+  stopBinanceWS();
+  _setStatusIndicator('delayed');
+}
+
+/* ------------------------------------------------------------------ */
+/* Status Indicator                                                     */
+/* ------------------------------------------------------------------ */
+function _setStatusIndicator(state) {
+  // Navbar status dot
+  const dot = document.getElementById('status-dot');
+  if (dot) {
+    dot.className = `status-dot status-${state}`;
+    dot.title = state === 'live' ? 'Live' : state === 'delayed' ? 'Delayed' : 'Offline';
+  }
+  // WS status
+  const ws = document.getElementById('ws-status');
+  if (ws) {
+    ws.className = `ws-status-dot ws-${state}`;
+  }
 }
 
 /* ------------------------------------------------------------------ */
