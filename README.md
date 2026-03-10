@@ -1,14 +1,7 @@
 # ₿ CryptoPredict AI
 
-> **AI-powered cryptocurrency prediction platform** — live charts, LSTM-inspired price forecasts, technical indicators, whale alerts, and buy/hold/sell signals. 100% static, hosted on GitHub Pages.
+> **AI-powered cryptocurrency prediction platform** — live charts, LSTM-inspired price forecasts, technical indicators, whale alerts, and buy/hold/sell signals. 100% static.
 
-🌐 **Live Demo:** [https://1yuub.github.io/crypto-predict](https://1yuub.github.io/crypto-predict)
-
----
-
-## 📸 Screenshots
-
-> _Dashboard and landing page screenshots — coming soon._
 
 ---
 
