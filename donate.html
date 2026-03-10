@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Support CryptoPredict AI — donate SOL or USDT on the Solana network to help keep this free platform running." />
+  <title>Donate — CryptoPredict AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- qrcode.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- NAVBAR                                                         -->
+  <!-- ============================================================ -->
+  <nav class="navbar">
+    <a class="navbar-brand" href="index.html">
+      <span>₿</span> CryptoPredict<span style="color:var(--neon-purple)">AI</span>
+    </a>
+
+    <div class="navbar-search">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="navbar-search" placeholder="Search any coin…" autocomplete="off" />
+    </div>
+
+    <div class="navbar-actions">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="dashboard.html">Dashboard</a>
+      <a class="nav-link active" href="donate.html">Donate</a>
+      <a class="btn btn-donate btn-sm" href="donate.html">💚 Donate</a>
+    </div>
+  </nav>
+
+  <!-- ============================================================ -->
+  <!-- DONATE HERO                                                    -->
+  <!-- ============================================================ -->
+  <section class="donate-hero">
+    <div class="hero-badge">❤️ Support Open Source</div>
+    <h1 style="font-size:clamp(2rem,5vw,3.5rem);margin-bottom:0.75rem">
+      Support This Project <span style="color:var(--neon-green)">❤️</span>
+    </h1>
+    <p style="max-width:520px;text-align:center;color:var(--text-secondary);font-size:1.05rem;margin-bottom:0">
+      CryptoPredict AI is 100% free and open source. If it helps your trading decisions,
+      consider buying me a coffee ☕ or fuelling the next feature 🚀
+    </p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- DONATION CARD                                                  -->
+  <!-- ============================================================ -->
+  <div style="max-width:720px;margin:0 auto;padding:0 1.5rem 4rem">
+
+    <div class="card-glass" style="text-align:center">
+
+      <!-- Network badges -->
+      <div style="display:flex;justify-content:center;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap">
+        <div style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.4rem 0.875rem;background:rgba(0,245,255,0.08);border:1px solid rgba(0,245,255,0.2);border-radius:50px;font-size:0.85rem;font-weight:600;color:var(--neon-cyan)">
+          ◎ SOL (Solana)
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.4rem 0.875rem;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:50px;font-size:0.85rem;font-weight:600;color:var(--neon-green)">
+          💵 USDT (Solana Network)
+        </div>
+      </div>
+
+      <!-- QR Code -->
+      <div class="qr-container">
+        <div id="qr-code" style="display:inline-block;padding:12px;background:#0a0a0f;border-radius:12px;border:2px solid rgba(0,245,255,0.3)"></div>
+      </div>
+
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Scan with any Solana-compatible wallet</p>
+
+      <!-- Wallet address -->
+      <div class="wallet-box" style="max-width:100%">
+        <span class="wallet-address" id="wallet-addr">FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT</span>
+        <button class="btn btn-ghost btn-sm" id="copy-btn" data-copy-wallet>📋 Copy Address</button>
+      </div>
+
+      <!-- Thank you card (appears after copy) -->
+      <div class="thankyou-card" id="thankyou-card">
+        <div class="thankyou-emoji">🎉</div>
+        <h3 style="margin:0.75rem 0 0.25rem;color:var(--neon-green)">Thank You!</h3>
+        <p style="font-size:0.875rem">Your support helps keep this platform free for everyone. You're awesome! 🙌</p>
+      </div>
+
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- DONATION TIERS                                               -->
+    <!-- ========================================================== -->
+    <h2 style="text-align:center;margin:2.5rem 0 0.5rem">Choose Your Support Level</h2>
+    <p style="text-align:center;color:var(--text-muted);font-size:0.9rem;margin-bottom:1.5rem">
+      Click any tier to copy the wallet address
+    </p>
+
+    <div class="tier-grid">
+
+      <div class="tier-card" data-amount="1 USDT">
+        <div class="tier-emoji">☕</div>
+        <div class="tier-label">Coffee</div>
+        <div class="tier-amount">1 USDT</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem">Fuel the developer</p>
+      </div>
+
+      <div class="tier-card" data-amount="5 USDT">
+        <div class="tier-emoji">🍕</div>
+        <div class="tier-label">Pizza</div>
+        <div class="tier-amount">5 USDT</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem">Keep the servers going</p>
+      </div>
+
+      <div class="tier-card" data-amount="10 USDT">
+        <div class="tier-emoji">🚀</div>
+        <div class="tier-label">Rocket Fuel</div>
+        <div class="tier-amount">10 USDT</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem">Launch new features</p>
+      </div>
+
+      <div class="tier-card" data-amount="25 USDT">
+        <div class="tier-emoji">💎</div>
+        <div class="tier-label">Diamond Hands</div>
+        <div class="tier-amount">25 USDT</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem">Premium features boost</p>
+      </div>
+
+      <div class="tier-card" data-amount="50 USDT">
+        <div class="tier-emoji">🌙</div>
+        <div class="tier-label">To The Moon</div>
+        <div class="tier-amount">50 USDT</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem">Build the next big thing</p>
+      </div>
+
+      <div class="tier-card" data-amount="100 USDT">
+        <div class="tier-emoji">🐋</div>
+        <div class="tier-label">Whale</div>
+        <div class="tier-amount">100 USDT</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem">Legendary supporter</p>
+      </div>
+
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- FAQ / WHY                                                    -->
+    <!-- ========================================================== -->
+    <div class="card mt-3" style="padding:2rem">
+      <h3 style="margin-bottom:1rem;color:var(--neon-cyan)">Why support us?</h3>
+      <div style="display:flex;flex-direction:column;gap:0.75rem">
+        <div style="display:flex;gap:0.75rem;align-items:flex-start">
+          <span style="font-size:1.25rem">🆓</span>
+          <div><strong>Completely Free</strong><p style="font-size:0.85rem;margin:0">No paywalls, no ads, no tracking. Everything stays free.</p></div>
+        </div>
+        <div style="display:flex;gap:0.75rem;align-items:flex-start">
+          <span style="font-size:1.25rem">🔓</span>
+          <div><strong>Open Source</strong><p style="font-size:0.85rem;margin:0">All code is on GitHub — fork it, improve it, share it.</p></div>
+        </div>
+        <div style="display:flex;gap:0.75rem;align-items:flex-start">
+          <span style="font-size:1.25rem">🏗️</span>
+          <div><strong>Built for You</strong><p style="font-size:0.85rem;margin:0">Roadmap driven by community feedback and donations.</p></div>
+        </div>
+        <div style="display:flex;gap:0.75rem;align-items:flex-start">
+          <span style="font-size:1.25rem">⚡</span>
+          <div><strong>No Backend Costs</strong><p style="font-size:0.85rem;margin:0">100% static — but your support enables premium API upgrades.</p></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- FOOTER                                                         -->
+  <!-- ============================================================ -->
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">₿ CryptoPredict AI</div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Powered by CoinGecko &amp; Binance APIs</p>
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="donate.html">Donate</a>
+        <a href="https://github.com/1yuub/crypto-predict" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="footer-donate">
+        <div style="margin-bottom:0.25rem">❤️ SOL / USDT (Solana)</div>
+        <code>FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT</code>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      © 2025 CryptoPredict AI — Open source, MIT License. Not financial advice.
+    </div>
+  </footer>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

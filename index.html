@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered cryptocurrency prediction platform with real-time price analysis, technical indicators, and buy/sell/hold signals." />
+  <title>CryptoPredict AI — Real-Time Crypto Predictions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- NAVBAR                                                         -->
+  <!-- ============================================================ -->
+  <nav class="navbar">
+    <a class="navbar-brand" href="index.html">
+      <span>₿</span> CryptoPredict<span style="color:var(--neon-purple)">AI</span>
+    </a>
+
+    <div class="navbar-search">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="navbar-search" placeholder="Search any coin…" autocomplete="off" />
+    </div>
+
+    <div class="navbar-actions">
+      <a class="nav-link active" href="index.html">Home</a>
+      <a class="nav-link" href="dashboard.html">Dashboard</a>
+      <a class="nav-link" href="donate.html">Donate</a>
+      <a class="btn btn-donate btn-sm" href="donate.html">💚 Donate</a>
+    </div>
+  </nav>
+
+  <!-- ============================================================ -->
+  <!-- QUICK STATS BAR                                                -->
+  <!-- ============================================================ -->
+  <div class="quick-stats" id="quick-stats">
+    <div class="quick-stat-item">
+      <span class="skeleton skeleton-text" style="width:120px;height:1rem"></span>
+    </div>
+    <div class="quick-stat-item">
+      <span class="skeleton skeleton-text" style="width:120px;height:1rem"></span>
+    </div>
+    <div class="quick-stat-item">
+      <span class="skeleton skeleton-text" style="width:120px;height:1rem"></span>
+    </div>
+    <div class="quick-stat-item">
+      <span class="skeleton skeleton-text" style="width:120px;height:1rem"></span>
+    </div>
+    <div class="quick-stat-item">
+      <span class="skeleton skeleton-text" style="width:120px;height:1rem"></span>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- HERO                                                           -->
+  <!-- ============================================================ -->
+  <section class="hero">
+    <div class="hero-badge">
+      🤖 Powered by Client-Side AI &nbsp;|&nbsp; 🔴 Live Data
+    </div>
+
+    <h1 class="hero-title">AI Crypto Predictions<br />– Real‑Time</h1>
+
+    <p class="hero-subtitle">
+      Advanced LSTM-inspired predictions for any cryptocurrency.<br />
+      Technical indicators, sentiment analysis &amp; whale tracking.
+    </p>
+
+    <!-- Search -->
+    <div class="hero-search" style="position:relative">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="hero-search" placeholder="Search Bitcoin, Ethereum, Solana…" autocomplete="off" />
+      <div id="hero-dropdown" class="autocomplete-dropdown hidden"></div>
+    </div>
+
+    <!-- CTAs -->
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href="dashboard.html">
+        🚀 Launch Dashboard
+      </a>
+      <a class="btn btn-ghost btn-lg" href="donate.html">
+        💚 Support Project
+      </a>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FEATURES OVERVIEW                                              -->
+  <!-- ============================================================ -->
+  <section style="padding:3rem 1.5rem;max-width:1200px;margin:0 auto">
+    <h2 style="text-align:center;margin-bottom:0.5rem">Why CryptoPredict AI?</h2>
+    <p style="text-align:center;color:var(--text-muted);margin-bottom:2.5rem">Everything you need to make smarter crypto decisions</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.25rem">
+
+      <div class="card" style="text-align:center;padding:2rem">
+        <div style="font-size:2.5rem;margin-bottom:0.75rem">🤖</div>
+        <h3 style="color:var(--neon-cyan);margin-bottom:0.5rem">AI Predictions</h3>
+        <p style="font-size:0.875rem">LSTM-inspired linear regression with weighted moving average extrapolation for 1h, 24h and 7-day price forecasts.</p>
+      </div>
+
+      <div class="card" style="text-align:center;padding:2rem">
+        <div style="font-size:2.5rem;margin-bottom:0.75rem">📊</div>
+        <h3 style="color:var(--neon-purple);margin-bottom:0.5rem">Live Charts</h3>
+        <p style="font-size:0.875rem">Interactive Chart.js price history, volume, RSI, and moving average charts with dark theme and gradient fills.</p>
+      </div>
+
+      <div class="card" style="text-align:center;padding:2rem">
+        <div style="font-size:2.5rem;margin-bottom:0.75rem">📡</div>
+        <h3 style="color:var(--neon-green);margin-bottom:0.5rem">Real-Time Data</h3>
+        <p style="font-size:0.875rem">Live prices from CoinGecko &amp; Binance APIs, Fear &amp; Greed Index, trending coins, and top gainers/losers.</p>
+      </div>
+
+      <div class="card" style="text-align:center;padding:2rem">
+        <div style="font-size:2.5rem;margin-bottom:0.75rem">🐋</div>
+        <h3 style="color:var(--neon-yellow);margin-bottom:0.5rem">Whale Alerts</h3>
+        <p style="font-size:0.875rem">Volume spike detection to surface potential whale movements and unusual trading activity.</p>
+      </div>
+
+      <div class="card" style="text-align:center;padding:2rem">
+        <div style="font-size:2.5rem;margin-bottom:0.75rem">📈</div>
+        <h3 style="color:var(--neon-red);margin-bottom:0.5rem">Technical Analysis</h3>
+        <p style="font-size:0.875rem">RSI, MACD, Moving Averages (MA7, MA25, MA99), volatility scoring and BUY/HOLD/SELL signals.</p>
+      </div>
+
+      <div class="card" style="text-align:center;padding:2rem">
+        <div style="font-size:2.5rem;margin-bottom:0.75rem">⚡</div>
+        <h3 style="color:var(--neon-cyan);margin-bottom:0.5rem">Auto-Refresh</h3>
+        <p style="font-size:0.875rem">Dashboard auto-refreshes every 30 seconds with an API response cache to avoid rate limits.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- DONATION BANNER                                                -->
+  <!-- ============================================================ -->
+  <div style="max-width:1200px;margin:0 auto;padding:0 1.5rem">
+    <div class="donation-banner">
+      <div>
+        <div class="donation-banner-text"><strong>❤️ Support This Project</strong></div>
+        <div class="donation-banner-addr">SOL / USDT (Solana): FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT</div>
+      </div>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" data-copy-wallet>📋 Copy Address</button>
+        <a class="btn btn-donate btn-sm" href="donate.html">💚 Donate</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- FOOTER                                                         -->
+  <!-- ============================================================ -->
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">₿ CryptoPredict AI</div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Powered by CoinGecko &amp; Binance APIs</p>
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="donate.html">Donate</a>
+        <a href="https://github.com/1yuub/crypto-predict" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="footer-donate">
+        <div style="margin-bottom:0.25rem">❤️ Support via SOL / USDT (Solana)</div>
+        <code>FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT</code>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      © 2025 CryptoPredict AI — Open source, MIT License. Not financial advice.
+    </div>
+  </footer>
+
+  <!-- Toast container injected by JS -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
