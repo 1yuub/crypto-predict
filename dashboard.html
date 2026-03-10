@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Full AI crypto prediction dashboard — live charts, RSI, MACD, whale alerts, and BUY/HOLD/SELL signals for any coin." />
+  <title>Dashboard — CryptoPredict AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Chart.js 4.x CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- NAVBAR                                                         -->
+  <!-- ============================================================ -->
+  <nav class="navbar">
+    <a class="navbar-brand" href="index.html">
+      <span>₿</span> CryptoPredict<span style="color:var(--neon-purple)">AI</span>
+    </a>
+
+    <div class="navbar-search">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="navbar-search" placeholder="Search any coin…" autocomplete="off" />
+    </div>
+
+    <div class="navbar-actions">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link active" href="dashboard.html">Dashboard</a>
+      <a class="nav-link" href="donate.html">Donate</a>
+      <a class="btn btn-donate btn-sm" href="donate.html">💚 Donate</a>
+    </div>
+  </nav>
+
+  <!-- ============================================================ -->
+  <!-- DASHBOARD                                                      -->
+  <!-- ============================================================ -->
+  <div class="dashboard-container">
+
+    <!-- Dashboard header bar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem">
+      <h2 id="coin-name" style="font-size:1.25rem">Bitcoin (BTC)</h2>
+      <div style="display:flex;align-items:center;gap:1rem">
+        <div class="refresh-timer">
+          <div class="refresh-dot"></div>
+          <span>Auto-refresh in <strong id="refresh-countdown">30s</strong></span>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="manual-refresh-btn" onclick="window.location.reload()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <!-- 3-column grid -->
+    <div class="dashboard-grid">
+
+      <!-- ======================================================== -->
+      <!-- LEFT PANEL                                                 -->
+      <!-- ======================================================== -->
+      <div class="dashboard-left">
+
+        <!-- Coin search -->
+        <div class="card mb-2">
+          <div class="section-header">
+            <span class="section-title"><span>🔍</span>Select Coin</span>
+          </div>
+          <div class="coin-selector-input" style="position:relative">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="dash-search" placeholder="Search coin…" autocomplete="off" />
+          </div>
+        </div>
+
+        <!-- Price & market data -->
+        <div class="card mb-2">
+          <div class="section-header">
+            <span class="section-title"><span>💰</span>Market Data</span>
+          </div>
+          <div id="price-display" class="price-display">
+            <div class="skeleton skeleton-text" style="width:60%;margin:0 auto"></div>
+            <div class="skeleton skeleton-text" style="width:40%;margin:0.5rem auto 0"></div>
+          </div>
+          <div id="metrics-grid">
+            <div class="metric-grid">
+              <div class="metric-item"><div class="skeleton skeleton-text"></div></div>
+              <div class="metric-item"><div class="skeleton skeleton-text"></div></div>
+              <div class="metric-item"><div class="skeleton skeleton-text"></div></div>
+              <div class="metric-item"><div class="skeleton skeleton-text"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fear & Greed -->
+        <div class="card mb-2">
+          <div class="section-header">
+            <span class="section-title"><span>😨</span>Fear &amp; Greed</span>
+          </div>
+          <div id="fear-greed-container">
+            <div class="skeleton skeleton-box" style="height:80px"></div>
+          </div>
+        </div>
+
+        <!-- Trending coins -->
+        <div class="card">
+          <div class="section-header">
+            <span class="section-title"><span>🔥</span>Trending Coins</span>
+          </div>
+          <div id="trending-list">
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- CENTER PANEL – Charts                                      -->
+      <!-- ======================================================== -->
+      <div class="dashboard-center">
+
+        <!-- Price + Prediction chart -->
+        <div class="card mb-2">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem">
+            <div class="section-title"><span>📈</span>Price &amp; Prediction</div>
+            <div class="chart-timeframe">
+              <button class="timeframe-btn" data-days="7">7D</button>
+              <button class="timeframe-btn active" data-days="30">30D</button>
+              <button class="timeframe-btn" data-days="90">90D</button>
+            </div>
+          </div>
+          <div class="chart-container" style="height:260px">
+            <canvas id="price-chart"></canvas>
+          </div>
+          <div style="display:flex;gap:1.5rem;margin-top:0.75rem;font-size:0.75rem;color:var(--text-muted)">
+            <span style="display:flex;align-items:center;gap:0.3rem"><span style="width:20px;height:2px;background:var(--neon-cyan);display:inline-block"></span> Historical</span>
+            <span style="display:flex;align-items:center;gap:0.3rem"><span style="width:20px;height:2px;border-top:2px dashed var(--neon-purple);display:inline-block"></span> Predicted (7d)</span>
+          </div>
+        </div>
+
+        <!-- Volume chart -->
+        <div class="card mb-2">
+          <div class="section-title mb-2"><span>📊</span>Volume (24h)</div>
+          <div class="chart-container" style="height:160px">
+            <canvas id="volume-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- RSI chart -->
+        <div class="card mb-2">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+            <div class="section-title"><span>📉</span>RSI (14)</div>
+            <div style="font-size:0.72rem;color:var(--text-muted)">
+              <span style="color:var(--neon-red)">▬</span> Overbought (70)
+              &nbsp;&nbsp;
+              <span style="color:var(--neon-green)">▬</span> Oversold (30)
+            </div>
+          </div>
+          <div class="chart-container" style="height:150px">
+            <canvas id="rsi-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- MA overlay chart -->
+        <div class="card">
+          <div class="section-title mb-2"><span>〰️</span>Moving Averages</div>
+          <div class="chart-container" style="height:180px">
+            <canvas id="ma-chart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- RIGHT PANEL – AI Predictions                               -->
+      <!-- ======================================================== -->
+      <div class="dashboard-right">
+
+        <!-- Prediction cards -->
+        <div class="card mb-2">
+          <div class="section-title mb-2"><span>🤖</span>AI Predictions</div>
+          <div id="prediction-cards">
+            <div class="prediction-card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text" style="width:60%"></div></div>
+            <div class="prediction-card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text" style="width:60%"></div></div>
+            <div class="prediction-card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text" style="width:60%"></div></div>
+          </div>
+        </div>
+
+        <!-- MACD signals -->
+        <div class="card mb-2">
+          <div class="section-title mb-2"><span>⚡</span>MACD Signal</div>
+          <div id="macd-display">
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text" style="width:80%"></div>
+          </div>
+        </div>
+
+        <!-- Moving Averages status -->
+        <div class="card mb-2">
+          <div class="section-title mb-2"><span>〰️</span>MA Signals</div>
+          <div id="ma-display">
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text" style="width:80%"></div>
+            <div class="skeleton skeleton-text" style="width:70%"></div>
+          </div>
+        </div>
+
+        <!-- Donation widget -->
+        <div class="card" style="background:linear-gradient(135deg,rgba(34,197,94,0.07),rgba(0,245,255,0.04));border-color:rgba(34,197,94,0.2)">
+          <div class="section-title mb-2"><span>❤️</span>Support Project</div>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem">SOL / USDT (Solana network)</p>
+          <div style="font-family:monospace;font-size:0.7rem;color:var(--neon-green);word-break:break-all;margin-bottom:0.75rem">
+            FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" data-copy-wallet>📋 Copy</button>
+            <a class="btn btn-donate btn-sm" href="donate.html">💚 Donate</a>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- BOTTOM PANEL – Market Intelligence                         -->
+      <!-- ======================================================== -->
+      <div class="dashboard-bottom">
+        <div class="market-intel-grid">
+
+          <!-- Top Gainers -->
+          <div class="card">
+            <div class="section-header mb-2">
+              <span class="section-title"><span style="color:var(--neon-green)">▲</span>&nbsp;Top Gainers 24h</span>
+            </div>
+            <div id="gainers-list">
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+            </div>
+          </div>
+
+          <!-- Top Losers -->
+          <div class="card">
+            <div class="section-header mb-2">
+              <span class="section-title"><span style="color:var(--neon-red)">▼</span>&nbsp;Top Losers 24h</span>
+            </div>
+            <div id="losers-list">
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+            </div>
+          </div>
+
+          <!-- Trending Panel -->
+          <div class="card">
+            <div class="section-header mb-2">
+              <span class="section-title"><span>🔥</span>Trending Now</span>
+            </div>
+            <div id="trending-panel">
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+            </div>
+          </div>
+
+          <!-- Whale Alerts -->
+          <div class="card">
+            <div class="section-header mb-2">
+              <span class="section-title"><span>🐋</span>Whale Alerts</span>
+            </div>
+            <div id="whale-alerts">
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /.dashboard-grid -->
+  </div><!-- /.dashboard-container -->
+
+  <!-- ============================================================ -->
+  <!-- FOOTER                                                         -->
+  <!-- ============================================================ -->
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">₿ CryptoPredict AI</div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Powered by CoinGecko &amp; Binance APIs</p>
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="donate.html">Donate</a>
+        <a href="https://github.com/1yuub/crypto-predict" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="footer-donate">
+        <div style="margin-bottom:0.25rem">❤️ SOL / USDT (Solana)</div>
+        <code>FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT</code>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      © 2025 CryptoPredict AI — Not financial advice.
+    </div>
+  </footer>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
