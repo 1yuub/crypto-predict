@@ -29,6 +29,7 @@ export function predictPrices(historicalPrices, steps = 7) {
     const dailyChange = (last - first) / historicalPrices.length;
     const predicted = [];
     for (let s = 1; s <= steps; s++) {
+      // Dampen by 30% to avoid over-projecting with limited data
       predicted.push(Math.max(0, last + dailyChange * s * 0.7));
     }
     return { prices: predicted, confidence: 25 };
@@ -327,7 +328,7 @@ export function predictNextTick(livePriceTicks) {
   }
   const ticks = livePriceTicks.slice(-20);
   const n = ticks.length;
-  // Compute exponentially weighted velocity
+  // Compute exponentially weighted velocity (decay=0.2 gives ~20x more weight to newest vs oldest tick)
   let totalWeight = 0, weightedVelocity = 0;
   for (let i = 1; i < n; i++) {
     const w = Math.exp(0.2 * i);
@@ -336,7 +337,8 @@ export function predictNextTick(livePriceTicks) {
     totalWeight += w;
   }
   const velocity = totalWeight > 0 ? weightedVelocity / totalWeight : 0;
-  const nextPrice = ticks[n - 1] + velocity * 0.3; // dampened
+  // Dampen velocity by 70% to reduce over-shooting on noisy tick data
+  const nextPrice = ticks[n - 1] + velocity * 0.3;
   const direction = Math.abs(velocity) < 0.0001 * ticks[n - 1] ? 'flat' : velocity > 0 ? 'up' : 'down';
   const microConfidence = Math.min(95, Math.max(20, 50 + (n / 20) * 30));
   return { nextPrice: Math.max(0, nextPrice), direction, microConfidence };

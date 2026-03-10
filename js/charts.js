@@ -53,9 +53,6 @@ function _darkDefaults() {
 }
 
 /** Map to store chart instances keyed by canvasId */
-const _instances = new Map();
-
-/** Also expose as a plain object for external access */
 const _charts = {};
 
 function _destroy(canvasId) {
@@ -63,15 +60,10 @@ function _destroy(canvasId) {
     _charts[canvasId].destroy();
     delete _charts[canvasId];
   }
-  if (_instances.has(canvasId)) {
-    _instances.get(canvasId).destroy();
-    _instances.delete(canvasId);
-  }
 }
 
 function _store(canvasId, chart) {
   _charts[canvasId] = chart;
-  _instances.set(canvasId, chart);
   return chart;
 }
 
@@ -423,5 +415,4 @@ export function renderLiveChart(canvasId) {
     }
   });
   _charts[canvasId] = chart;
-  _instances.set(canvasId, chart);
 }

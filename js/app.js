@@ -42,6 +42,13 @@ let wsConnected      = false;
 let fullRefreshTimer = null;
 let fullRefreshCountdown = 60;
 
+// Dashboard refresh interval in seconds
+const FULL_REFRESH_INTERVAL = 60;
+
+// Fallback coin IDs for quick-stats when top coins endpoint fails
+const FALLBACK_COIN_IDS  = ['bitcoin', 'ethereum', 'solana', 'dogecoin', 'binancecoin'];
+const FALLBACK_COIN_SYMBOLS = { bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL', dogecoin: 'DOGE', binancecoin: 'BNB' };
+
 /* ------------------------------------------------------------------ */
 /* Page Detection                                                       */
 /* ------------------------------------------------------------------ */
@@ -217,10 +224,9 @@ async function renderQuickStats() {
   // Fallback to simple price if top coins fails
   if (!coins || !coins.length) {
     try {
-      const simple = await fetchCoinGeckoSimplePrice(['bitcoin', 'ethereum', 'solana', 'dogecoin', 'binancecoin']);
-      const coinMap = { bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL', dogecoin: 'DOGE', binancecoin: 'BNB' };
+      const simple = await fetchCoinGeckoSimplePrice(FALLBACK_COIN_IDS);
       coins = Object.entries(simple).map(([id, data]) => ({
-        symbol: coinMap[id] || id,
+        symbol: FALLBACK_COIN_SYMBOLS[id] || id,
         name: id,
         current_price: data.usd,
         price_change_percentage_24h: data.usd_24h_change
@@ -620,9 +626,9 @@ function renderWhaleAlerts(alerts) {
 /* ------------------------------------------------------------------ */
 function startAutoRefresh() {
   if (fullRefreshTimer) clearInterval(fullRefreshTimer);
-  fullRefreshCountdown = 60;
+  fullRefreshCountdown = FULL_REFRESH_INTERVAL;
   // Keep legacy refreshCountdown in sync for countdown display
-  refreshCountdown = 60;
+  refreshCountdown = FULL_REFRESH_INTERVAL;
 
   fullRefreshTimer = setInterval(async () => {
     fullRefreshCountdown--;
@@ -631,8 +637,8 @@ function startAutoRefresh() {
     if (el) el.textContent = fullRefreshCountdown + 's';
 
     if (fullRefreshCountdown <= 0) {
-      fullRefreshCountdown = 60;
-      refreshCountdown = 60;
+      fullRefreshCountdown = FULL_REFRESH_INTERVAL;
+      refreshCountdown = FULL_REFRESH_INTERVAL;
       clearCache();
       await loadDashboardData(selectedCoin.id, selectedCoin.symbol);
     }

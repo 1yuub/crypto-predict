@@ -43,9 +43,11 @@ async function fetchWithRetry(url, retries = 3) {
   let lastErr;
   for (let i = 0; i < retries; i++) {
     try {
+      // Exponential backoff: 0ms, 1s, 2s for retries 0, 1, 2
       if (i > 0) await sleep(1000 * Math.pow(2, i - 1));
       const res = await fetch(url, {
         headers: { Accept: 'application/json' },
+        // 8s timeout balances responsiveness vs slow proxy chains
         signal: AbortSignal.timeout(8000)
       });
       if (res.status === 429) throw new Error('rate_limited');
