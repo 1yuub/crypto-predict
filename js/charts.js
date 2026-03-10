@@ -53,17 +53,17 @@ function _darkDefaults() {
 }
 
 /** Map to store chart instances keyed by canvasId */
-const _instances = new Map();
+const _charts = {};
 
 function _destroy(canvasId) {
-  if (_instances.has(canvasId)) {
-    _instances.get(canvasId).destroy();
-    _instances.delete(canvasId);
+  if (_charts[canvasId]) {
+    _charts[canvasId].destroy();
+    delete _charts[canvasId];
   }
 }
 
 function _store(canvasId, chart) {
-  _instances.set(canvasId, chart);
+  _charts[canvasId] = chart;
   return chart;
 }
 
@@ -82,36 +82,20 @@ export function renderPriceChart(canvasId, historicalData, predictedData = []) {
   if (!ctx) return;
 
   const { labels, prices } = historicalData;
+  const N = prices.length;
 
-  // Build future date labels (proper dates, not hardcoded 2024)
-  const lastDate = labels.length
-    ? new Date(labels[labels.length - 1])
-    : new Date();
-  // If the date is invalid (e.g. "Dec 25"), try appending current year
-  let lastDateMs = lastDate;
-  if (isNaN(lastDate.getTime()) && labels.length) {
-    lastDateMs = new Date(labels[labels.length - 1] + ' ' + new Date().getFullYear());
-  }
-  // Final fallback to today if still invalid
-  if (isNaN(lastDateMs.getTime())) {
-    lastDateMs = new Date();
-  }
-
-  const futureLabels = predictedData.map((_, i) => {
-    const d = new Date(lastDateMs);
-    d.setDate(d.getDate() + i + 1);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  });
+  // Build future labels: Day+1, Day+2, … Day+7 (up to predictedData.length)
+  const futureLabels = predictedData.map((_, i) => `Day+${i + 1}`);
 
   const allLabels = [...labels, ...futureLabels];
 
-  // Historical dataset: fill with null for future slots
+  // Historical dataset: N prices + nulls for future slots
   const histData = [...prices, ...Array(futureLabels.length).fill(null)];
 
-  // Predicted dataset: null for all historical positions except last (connect lines)
+  // Prediction dataset: (N-1) nulls, then last historical price as connection point, then predictions
   const predData = [
-    ...Array(prices.length - 1).fill(null),
-    prices[prices.length - 1], // connect at last historical point
+    ...Array(N - 1).fill(null),
+    prices[N - 1], // connect at last historical point
     ...predictedData
   ];
 
@@ -368,83 +352,67 @@ export function destroyChart(canvasId) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Live chart: append a single price point without full re-render      */
+/* 5. Append a live price point to an existing chart                   */
 /* ------------------------------------------------------------------ */
 
 /**
- * Append a single new price point to a live chart (zero-flicker).
- * Shifts the window if more than maxPoints are accumulated.
+ * Append a single price point to a live chart without full re-render.
  * @param {string} canvasId
  * @param {number} price
- * @param {string} label   e.g. "14:35:22"
- * @param {number} maxPoints  max data points to keep (default 200)
+ * @param {string} label
  */
-export function appendLivePricePoint(canvasId, price, label, maxPoints = 200) {
-  const chart = _instances.get(canvasId);
+export function appendLivePricePoint(canvasId, price, label) {
+  const chart = _charts[canvasId];
   if (!chart) return;
-
   chart.data.labels.push(label);
   chart.data.datasets[0].data.push(price);
-
-  // Shift window if too many points
-  if (chart.data.labels.length > maxPoints) {
+  // Keep max 120 points for live chart
+  if (chart.data.labels.length > 120) {
     chart.data.labels.shift();
     chart.data.datasets[0].data.shift();
   }
-
-  // 'none' mode = no animation, minimal CPU
-  chart.update('none');
+  chart.update('none'); // no animation for speed
 }
 
+/* ------------------------------------------------------------------ */
+/* 6. Live real-time price stream chart                                 */
+/* ------------------------------------------------------------------ */
+
 /**
- * Initialise a bare live-tick chart (for the real-time 1s price stream).
- * Call once; then use appendLivePricePoint to feed data.
+ * Create a lightweight real-time chart for the Binance WebSocket stream.
  * @param {string} canvasId
  */
-export function initLiveChart(canvasId) {
-  _destroy(canvasId);
-  const ctx = document.getElementById(canvasId);
+export function renderLiveChart(canvasId) {
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
   if (!ctx) return;
-
+  _destroy(canvasId);
   const chart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: [],
       datasets: [{
         label: 'Live Price',
-        data:  [],
-        borderColor:     CYAN,
-        borderWidth:     1.5,
-        pointRadius:     0,
-        tension:         0.2,
-        fill: true,
-        backgroundColor: (context) => {
-          const gradient = context.chart.ctx.createLinearGradient(0, 0, 0, context.chart.height);
-          gradient.addColorStop(0, 'rgba(0,245,255,0.12)');
-          gradient.addColorStop(1, 'rgba(0,245,255,0.0)');
-          return gradient;
-        }
+        data: [],
+        borderColor: '#00f5ff',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+        tension: 0.3
       }]
     },
     options: {
-      ..._darkDefaults(),
       animation: false,
-      plugins: {
-        ..._darkDefaults().plugins,
-        legend: { display: false }
-      },
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
       scales: {
-        x: {
-          grid:  { display: false },
-          ticks: { color: TEXT, maxRotation: 0, maxTicksLimit: 6, font: { size: 10 } }
-        },
+        x: { display: false },
         y: {
-          grid:  { color: GRID },
-          ticks: { color: TEXT, callback: v => formatPrice(v), font: { size: 10 } }
+          ticks: { color: '#94a3b8' },
+          grid: { color: 'rgba(255,255,255,0.05)' }
         }
       }
     }
   });
-
-  return _store(canvasId, chart);
+  _charts[canvasId] = chart;
 }

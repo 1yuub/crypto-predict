@@ -1,8 +1,8 @@
 /**
  * api.js — Multi-API Data Layer
  * CoinGecko, Binance, Alternative.me — all free, no key required
- * Includes retry + exponential backoff, CORS proxy fallback,
- * stale-while-revalidate, and Binance WebSocket live feed.
+ * Includes retry with exponential backoff, CORS proxy fallback chain,
+ * stale-while-revalidate caching, and Binance WebSocket live feed.
  */
 
 'use strict';
@@ -12,22 +12,19 @@ import { showToast } from './utils.js';
 /* ------------------------------------------------------------------ */
 /* Cache                                                                */
 /* ------------------------------------------------------------------ */
-const CACHE_TTL_PRICE   = 5_000;    // 5 seconds (prices — WS is primary)
-const CACHE_TTL_DEFAULT = 30_000;   // 30 seconds
-const CACHE_TTL_LIST    = 300_000;  // 5 minutes  (coin list)
+const CACHE_TTL = 5_000;       // 5 seconds for price data (WS provides live feed)
+const COIN_LIST_TTL = 300_000; // 5 minutes for coin list
 const _cache = new Map();
+let _ws = null;
 
-function cacheGet(key, maxAge = CACHE_TTL_DEFAULT) {
+function cacheGet(key, allowStale = false) {
   if (!_cache.has(key)) return null;
-  const entry = _cache.get(key);
-  if (Date.now() - entry.ts > maxAge) return null; // expired but keep for stale
-  return entry.data;
-}
-
-/** Returns stale data even if expired (for stale-while-revalidate) */
-function cacheGetStale(key) {
-  if (!_cache.has(key)) return null;
-  return _cache.get(key).data;
+  const { data, ts } = _cache.get(key);
+  const ttl = key === 'coin_list' ? COIN_LIST_TTL : CACHE_TTL;
+  if (Date.now() - ts <= ttl) return data;
+  if (allowStale) return data; // stale but usable as fallback
+  _cache.delete(key);
+  return null;
 }
 
 function cacheSet(key, data) {
@@ -35,91 +32,65 @@ function cacheSet(key, data) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Retry with exponential backoff                                       */
+/* Retry & Proxy helpers                                                */
 /* ------------------------------------------------------------------ */
-async function _sleep(ms) {
+
+async function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-/**
- * Fetch with up to `retries` attempts, doubling delay each time.
- * @param {string}   url
- * @param {number}   retries
- * @param {number}   baseDelay  ms
- */
-async function _fetchWithRetry(url, retries = 3, baseDelay = 1000) {
+async function fetchWithRetry(url, retries = 3) {
   let lastErr;
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  for (let i = 0; i < retries; i++) {
     try {
+      // Exponential backoff: 0ms, 1s, 2s for retries 0, 1, 2
+      if (i > 0) await sleep(1000 * Math.pow(2, i - 1));
       const res = await fetch(url, {
         headers: { Accept: 'application/json' },
+        // 8s timeout balances responsiveness vs slow proxy chains
         signal: AbortSignal.timeout(8000)
       });
+      if (res.status === 429) throw new Error('rate_limited');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
-    } catch (err) {
-      lastErr = err;
-      if (attempt < retries) await _sleep(baseDelay * (2 ** attempt));
+    } catch (e) {
+      lastErr = e;
     }
   }
   throw lastErr;
 }
 
-/* ------------------------------------------------------------------ */
-/* CORS proxy fallback chain                                            */
-/* ------------------------------------------------------------------ */
 const PROXIES = [
-  '',                              // direct (no proxy)
-  'https://api.allorigins.win/get?url=',
-  'https://corsproxy.io/?'
+  url => url,
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`
 ];
 
-/**
- * Try a URL directly, then via each proxy in order.
- * Proxies that wrap the body in JSON need unwrapping (allorigins).
- */
-async function _fetchWithProxyFallback(url) {
-  for (const proxy of PROXIES) {
-    try {
-      if (proxy === '') {
-        return await _fetchWithRetry(url);
-      }
-      const proxyUrl = proxy + encodeURIComponent(url);
-      const raw = await _fetchWithRetry(proxyUrl, 2, 500);
-      // allorigins wraps the response in { contents: "..." }
-      if (proxy.includes('allorigins') && typeof raw.contents === 'string') {
-        return JSON.parse(raw.contents);
-      }
-      return raw;
-    } catch (_) {
-      // try next proxy
-    }
-  }
-  throw new Error(`All proxy attempts failed for ${url}`);
-}
-
-/* ------------------------------------------------------------------ */
-/* Generic fetch wrapper (cache → fetch → stale fallback)             */
-/* ------------------------------------------------------------------ */
-async function apiFetch(url, cacheKey = null, ttl = CACHE_TTL_DEFAULT) {
+async function apiFetch(url, cacheKey = null, allowStale = true) {
   if (cacheKey) {
-    const fresh = cacheGet(cacheKey, ttl);
+    const fresh = cacheGet(cacheKey, false);
     if (fresh !== null) return fresh;
   }
-
-  try {
-    const data = await _fetchWithProxyFallback(url);
-    if (cacheKey) cacheSet(cacheKey, data);
-    return data;
-  } catch (err) {
-    // Stale-while-revalidate: return expired cache with _stale flag
-    if (cacheKey) {
-      const stale = cacheGetStale(cacheKey);
-      if (stale !== null) {
-        return { ...stale, _stale: true };
+  for (let pi = 0; pi < PROXIES.length; pi++) {
+    try {
+      const proxyUrl = PROXIES[pi](url);
+      let data = await fetchWithRetry(proxyUrl, pi === 0 ? 2 : 1);
+      // allorigins wraps response in { contents: "..." }
+      if (pi === 1 && data && data.contents) {
+        data = JSON.parse(data.contents);
+      }
+      if (cacheKey) cacheSet(cacheKey, data);
+      return data;
+    } catch (e) {
+      if (pi === PROXIES.length - 1) {
+        // All proxies failed — return stale cache if available
+        if (cacheKey && allowStale) {
+          const stale = cacheGet(cacheKey, true);
+          if (stale !== null) return stale;
+        }
+        throw e;
       }
     }
-    throw err;
   }
 }
 
@@ -128,83 +99,59 @@ async function apiFetch(url, cacheKey = null, ttl = CACHE_TTL_DEFAULT) {
 /* ------------------------------------------------------------------ */
 
 const CG_BASE = 'https://api.coingecko.com/api/v3';
+const BINANCE_BASE = 'https://api.binance.com/api/v3';
 
 /**
- * Fetch full coin list (id, symbol, name) — cached 5 min
+ * Fetch full coin list (id, symbol, name)
+ * Heavy – cached longer (5 min)
  */
 export async function fetchCoinList() {
   const key = 'coin_list';
-  const c = _cache.get(key);
-  if (c && Date.now() - c.ts < CACHE_TTL_LIST) return c.data;
-
+  const cached = cacheGet(key, false);
+  if (cached) return cached;
   try {
-    const data = await _fetchWithProxyFallback(`${CG_BASE}/coins/list`);
-    _cache.set(key, { data, ts: Date.now() });
-    return data;
-  } catch (err) {
-    const stale = cacheGetStale(key);
-    if (stale) return stale;
-    return [];
+    const data = await apiFetch(`${CG_BASE}/coins/list`, key, true);
+    return data || [];
+  } catch {
+    const stale = cacheGet(key, true);
+    return stale || [];
   }
 }
 
 /**
- * Full market + metadata for a coin — with stale fallback
+ * Full market + metadata for a coin
  */
 export async function fetchMarketData(coinId) {
   const key = `market_${coinId}`;
   try {
-    const data = await apiFetch(
+    return await apiFetch(
       `${CG_BASE}/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`,
-      key
+      key, true
     );
-    if (data && data._stale) {
-      showToast(`⚠️ Showing cached data for ${coinId}`, 'info');
-    }
-    return data;
-  } catch (err) {
+  } catch {
+    const stale = cacheGet(key, true);
+    if (stale) return stale;
     showToast(`Market data unavailable for ${coinId}`, 'error');
     return null;
   }
 }
 
 /**
- * Lightweight simple price endpoint — less rate-limited than /coins/{id}
- * @param {string[]} coinIds  e.g. ['bitcoin','ethereum','solana']
- * @returns {Object}  { bitcoin: { usd: 50000, usd_24h_change: 1.2 }, ... }
- */
-export async function fetchCoinGeckoSimplePrice(coinIds) {
-  const ids = coinIds.join(',');
-  const key = `simple_price_${ids}`;
-  try {
-    return await apiFetch(
-      `${CG_BASE}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`,
-      key,
-      CACHE_TTL_PRICE
-    );
-  } catch (err) {
-    const stale = cacheGetStale(key);
-    if (stale) return { ...stale, _stale: true };
-    return null;
-  }
-}
-
-/**
- * Historical OHLCV prices from CoinGecko — with proxy fallback + stale
+ * Historical OHLCV prices from CoinGecko
+ * @param {string} coinId
+ * @param {number} days
+ * @returns {{ prices: [ts,price][], market_caps: [], total_volumes: [] }}
  */
 export async function fetchHistoricalPrices(coinId, days = 30) {
   const key = `history_${coinId}_${days}`;
   try {
     return await apiFetch(
       `${CG_BASE}/coins/${coinId}/market_chart?vs_currency=usd&days=${days}`,
-      key
+      key, true
     );
-  } catch (err) {
-    const stale = cacheGetStale(key);
-    if (stale) {
-      showToast('⚠️ Showing cached chart data', 'info');
-      return { ...stale, _stale: true };
-    }
+  } catch {
+    const stale = cacheGet(key, true);
+    if (stale) return stale;
     return { prices: [], market_caps: [], total_volumes: [] };
   }
 }
@@ -214,11 +161,10 @@ export async function fetchHistoricalPrices(coinId, days = 30) {
  */
 export async function fetchTrending() {
   try {
-    return await apiFetch(`${CG_BASE}/search/trending`, 'trending');
-  } catch (err) {
-    const stale = cacheGetStale('trending');
-    if (stale) return stale;
-    return { coins: [] };
+    return await apiFetch(`${CG_BASE}/search/trending`, 'trending', true);
+  } catch {
+    const stale = cacheGet('trending', true);
+    return stale || { coins: [] };
   }
 }
 
@@ -231,12 +177,11 @@ export async function fetchTopCoins(limit = 10) {
   try {
     return await apiFetch(
       `${CG_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${limit}&page=1&sparkline=false&price_change_percentage=24h`,
-      key
+      key, true
     );
-  } catch (err) {
-    const stale = cacheGetStale(key);
-    if (stale) return stale;
-    return null; // signal failure so caller can try simplePrice fallback
+  } catch {
+    const stale = cacheGet(key, true);
+    return stale || [];
   }
 }
 
@@ -245,34 +190,29 @@ export async function fetchTopCoins(limit = 10) {
  */
 export async function fetchFearGreed() {
   try {
-    return await apiFetch('https://api.alternative.me/fng/', 'fear_greed');
-  } catch (err) {
-    const stale = cacheGetStale('fear_greed');
-    if (stale) return stale;
-    return { data: [{ value: '50', value_classification: 'Neutral' }] };
+    return await apiFetch('https://api.alternative.me/fng/?limit=1', 'fear_greed', true);
+  } catch {
+    const stale = cacheGet('fear_greed', true);
+    return stale || { data: [{ value: '50', value_classification: 'Neutral' }] };
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* Binance REST Endpoints                                               */
+/* Binance Endpoints                                                    */
 /* ------------------------------------------------------------------ */
 
-const BINANCE_BASE = 'https://api.binance.com/api/v3';
-
 /**
- * Live price from Binance REST (very generous rate limits)
+ * Live price from Binance
  * @param {string} symbol  e.g. "BTC"
  */
 export async function fetchBinancePrice(symbol) {
   const key = `binance_price_${symbol}`;
   try {
-    const data = await apiFetch(
+    return await apiFetch(
       `${BINANCE_BASE}/ticker/price?symbol=${symbol.toUpperCase()}USDT`,
-      key,
-      CACHE_TTL_PRICE
+      key, true
     );
-    return data;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -288,25 +228,65 @@ export async function fetchBinanceKlines(symbol, interval = '1d', limit = 30) {
   try {
     return await apiFetch(
       `${BINANCE_BASE}/klines?symbol=${symbol.toUpperCase()}USDT&interval=${interval}&limit=${limit}`,
-      key
+      key, true
     );
-  } catch (err) {
-    return [];
+  } catch {
+    const stale = cacheGet(key, true);
+    return stale || [];
   }
+}
+
+/**
+ * Lightweight simple price endpoint from CoinGecko
+ * @param {string|string[]} coinIds
+ */
+export async function fetchCoinGeckoSimplePrice(coinIds) {
+  const ids = Array.isArray(coinIds) ? coinIds.join(',') : coinIds;
+  const key = `simple_price_${ids}`;
+  try {
+    return await apiFetch(
+      `${CG_BASE}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`,
+      key, true
+    );
+  } catch {
+    const stale = cacheGet(key, true);
+    return stale || {};
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Attempt to get the most accurate current price for a coin.
+ * Tries Binance first (more real-time), then CoinGecko simple price,
+ * then falls back to full CoinGecko market data.
+ * @param {string} coinId     CoinGecko id (e.g. "bitcoin")
+ * @param {string} symbol     Ticker symbol (e.g. "BTC")
+ * @returns {Promise<number>}
+ */
+export async function fetchCurrentPrice(coinId, symbol) {
+  try {
+    const b = await fetchBinancePrice(symbol);
+    if (b && b.price) return parseFloat(b.price);
+  } catch (_) { /* fall through */ }
+  try {
+    const simple = await fetchCoinGeckoSimplePrice([coinId]);
+    if (simple && simple[coinId]) return simple[coinId].usd;
+  } catch (_) { /* fall through */ }
+  const market = await fetchMarketData(coinId);
+  return market?.market_data?.current_price?.usd ?? 0;
 }
 
 /* ------------------------------------------------------------------ */
 /* Binance WebSocket Live Feed                                          */
 /* ------------------------------------------------------------------ */
 
-let _ws = null;
-
 /**
- * Open a Binance WebSocket stream for real-time ticker updates.
- * Calls onUpdate({ price, change24h, volume24h, high24h, low24h, timestamp })
- * on every message. Passes null on error.
- * @param {string}   symbol    e.g. "BTC"
- * @param {Function} onUpdate  callback
+ * Open a Binance WebSocket ticker stream and call onUpdate on each tick.
+ * @param {string} symbol  Ticker symbol (e.g. "BTC")
+ * @param {function} onUpdate  Called with { price, change24h, volume24h, high24h, low24h, timestamp } or null on error
  */
 export function startBinanceWS(symbol, onUpdate) {
   stopBinanceWS();
@@ -326,50 +306,21 @@ export function startBinanceWS(symbol, onUpdate) {
         });
       } catch (_) { /* ignore parse errors */ }
     };
-    _ws.onerror = () => onUpdate(null);
+    _ws.onerror = () => { onUpdate(null); };
     _ws.onclose = () => { _ws = null; };
-  } catch (err) {
+  } catch {
     onUpdate(null);
   }
 }
 
 /**
- * Close the Binance WebSocket connection.
+ * Close the active Binance WebSocket connection, if any.
  */
 export function stopBinanceWS() {
   if (_ws) {
-    _ws.close();
+    try { _ws.close(); } catch (_) { /* ignore */ }
     _ws = null;
   }
-}
-
-/* ------------------------------------------------------------------ */
-/* Helpers                                                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Attempt to get the most accurate current price for a coin.
- * Priority: Binance REST → CoinGecko simple → CoinGecko market data
- * @param {string} coinId  CoinGecko id
- * @param {string} symbol  Ticker symbol e.g. "BTC"
- * @returns {Promise<number>}
- */
-export async function fetchCurrentPrice(coinId, symbol) {
-  // 1. Try Binance REST
-  try {
-    const b = await fetchBinancePrice(symbol);
-    if (b && b.price) return parseFloat(b.price);
-  } catch (_) { /* fall through */ }
-
-  // 2. Try CoinGecko simple/price (lighter endpoint)
-  try {
-    const sp = await fetchCoinGeckoSimplePrice([coinId]);
-    if (sp && sp[coinId]?.usd) return sp[coinId].usd;
-  } catch (_) { /* fall through */ }
-
-  // 3. Fallback to full CoinGecko market data
-  const market = await fetchMarketData(coinId);
-  return market?.market_data?.current_price?.usd ?? 0;
 }
 
 /**
