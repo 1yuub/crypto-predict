@@ -114,6 +114,6 @@ Donation tiers: ☕ Coffee (1 USDT) · 🍕 Pizza (5 USDT) · 🚀 Rocket Fuel (
 
 ## 📜 License
 
-MIT © 2025 [1yuub](https://github.com/1yuub)
+MIT © 2026 [1yuub](https://github.com/1yuub)
 
 > **Disclaimer:** CryptoPredict AI is for educational and informational purposes only. Nothing on this platform constitutes financial advice. Always do your own research (DYOR) before making any investment decisions.
