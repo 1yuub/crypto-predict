@@ -46,7 +46,7 @@
       <div style="display:flex;align-items:center;gap:1rem">
         <div class="refresh-timer">
           <div class="refresh-dot"></div>
-          <span>Auto-refresh in <strong id="refresh-countdown">30s</strong></span>
+          <span>Auto-refresh in <strong id="refresh-countdown">60s</strong></span>
         </div>
         <button class="btn btn-ghost btn-sm" id="manual-refresh-btn" onclick="window.location.reload()">🔄 Refresh</button>
       </div>
@@ -75,6 +75,15 @@
         <div class="card mb-2">
           <div class="section-header">
             <span class="section-title"><span>💰</span>Market Data</span>
+          </div>
+          <!-- Live price section -->
+          <div class="live-price-section">
+            <div id="live-price-display" class="price-main">--</div>
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem">
+              <span id="live-change-display" class="price-change-live">--</span>
+              <span id="live-price-badge" class="live-badge" style="display:none">🔴 LIVE</span>
+              <span id="ws-status" class="ws-dot ws-loading" title="Connecting...">●</span>
+            </div>
           </div>
           <div id="price-display" class="price-display">
             <div class="skeleton skeleton-text" style="width:60%;margin:0 auto"></div>
@@ -161,10 +170,21 @@
         </div>
 
         <!-- MA overlay chart -->
-        <div class="card">
+        <div class="card mb-2">
           <div class="section-title mb-2"><span>〰️</span>Moving Averages</div>
           <div class="chart-container" style="height:180px">
             <canvas id="ma-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Live price stream chart -->
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+            <div class="section-title"><span>⚡</span>Live Price Stream</div>
+            <span style="font-size:0.75rem;color:var(--text-muted)">Last 120 seconds</span>
+          </div>
+          <div class="chart-container" style="height:120px">
+            <canvas id="live-chart"></canvas>
           </div>
         </div>
 

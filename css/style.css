@@ -977,3 +977,122 @@ footer {
 .p-0 { padding: 0 !important; }
 .rounded { border-radius: var(--radius); }
 .border-b { border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 0.75rem; }
+
+/* ============================================================
+   LIVE FEED & WEBSOCKET STYLES
+   ============================================================ */
+
+/* Live price flash animations */
+.price-flash-up {
+  animation: flashUp 0.4s ease;
+}
+.price-flash-down {
+  animation: flashDown 0.4s ease;
+}
+@keyframes flashUp {
+  0%   { color: var(--text-primary); }
+  50%  { color: var(--neon-green); text-shadow: 0 0 12px var(--neon-green); }
+  100% { color: var(--text-primary); }
+}
+@keyframes flashDown {
+  0%   { color: var(--text-primary); }
+  50%  { color: var(--neon-red); text-shadow: 0 0 12px var(--neon-red); }
+  100% { color: var(--text-primary); }
+}
+
+/* WebSocket status dot */
+.ws-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  font-size: 0;
+  flex-shrink: 0;
+}
+.ws-live    { background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green); animation: pulseGlow 1.5s infinite; }
+.ws-delayed { background: #f59e0b; }
+.ws-loading { background: var(--text-muted); }
+.ws-offline { background: var(--neon-red); }
+
+/* Live badge */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--neon-red);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 20px;
+  padding: 2px 8px;
+  animation: pulseLive 1.5s infinite;
+}
+@keyframes pulseLive {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+/* Live price section */
+.live-price-section {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Hero live ticker */
+.hero-live-ticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--neon-cyan);
+  background: rgba(0, 245, 255, 0.08);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 20px;
+  padding: 4px 14px;
+  margin-top: 0.75rem;
+}
+.live-dot {
+  color: var(--neon-red);
+  font-size: 0.6rem;
+  animation: pulseLive 1s infinite;
+}
+
+/* Quick stats offline message */
+.quick-stat-offline {
+  color: #f59e0b;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+}
+
+/* Skeleton stat */
+.skeleton-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0.75rem 1rem;
+}
+
+/* Prediction section label */
+.prediction-section-7d .section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--neon-purple);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+/* Price change live display */
+.price-change-live {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Nav status indicator */
+#nav-status {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.25rem;
+}
