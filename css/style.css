@@ -933,7 +933,31 @@ footer {
 }
 
 @media (max-width: 768px) {
+  /* Full-width body, no horizontal overflow */
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    min-height: 100dvh;
+  }
+
+  /* Prevent any element from causing horizontal scroll */
+  img, video, canvas, svg, iframe {
+    max-width: 100%;
+  }
+
+  /* Navbar: hide search, allow actions to wrap */
   .navbar-search { display: none; }
+  .navbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .navbar-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Dashboard grid: single column */
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
@@ -941,8 +965,64 @@ footer {
     grid-column: 1;
   }
   .dashboard-center { order: -1; }
+  .dashboard-container {
+    padding: 0.75rem;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Cards and panels */
+  .card, .card-glass, .panel {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Chart containers */
+  .chart-container {
+    width: 100%;
+    max-width: 100%;
+    height: 220px;
+  }
+  canvas {
+    max-width: 100%;
+  }
+
+  /* Hero: fit full mobile screen */
+  .hero {
+    min-height: 100dvh;
+    padding: 1.5rem 1rem;
+  }
+  .hero-search {
+    width: 100%;
+    max-width: 100%;
+    padding: 0 0.5rem;
+  }
+  .hero-search input {
+    width: 100%;
+    font-size: 1rem;
+    padding: 0.9rem 1rem 0.9rem 2.75rem;
+  }
+  .hero-cta {
+    flex-direction: column;
+    width: 100%;
+    padding: 0 0.5rem;
+  }
+  .hero-cta .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Quick stats bar: horizontal scroll on mobile */
+  .quick-stats {
+    padding: 0.75rem 1rem;
+  }
+
+  /* Market intel grid */
   .market-intel-grid { grid-template-columns: 1fr 1fr; }
   .metric-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Footer */
   .footer-inner { flex-direction: column; text-align: center; }
   .footer-donate { text-align: center; }
 }
@@ -955,6 +1035,14 @@ footer {
   .market-intel-grid { grid-template-columns: 1fr; }
   .tier-grid { grid-template-columns: 1fr 1fr; }
   .hero-title { font-size: 2rem; }
+
+  /* Smaller chart height on very small screens */
+  .chart-container { height: 180px; }
+
+  /* Navbar: brand + status only, no wrapping clutter */
+  .nav-link { display: none; }
+  .nav-link.active { display: inline-block; }
+  .btn-donate { display: none; }
 }
 
 /* ---------- Misc Utilities ---------- */
