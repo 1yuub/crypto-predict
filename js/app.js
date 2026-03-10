@@ -7,14 +7,16 @@
 
 import {
   fetchCoinList, fetchMarketData, fetchHistoricalPrices,
-  fetchTrending, fetchTopCoins, clearCache
+  fetchTrending, fetchTopCoins, fetchCoinGeckoSimplePrice,
+  startBinanceWS, stopBinanceWS, clearCache
 } from './api.js';
 import {
-  predictPrices, calculateRSI, calculateMACD,
+  predictPrices, predictNextTick, calculateRSI, calculateMACD,
   calculateMovingAverage, calculateVolatility, generateSignal, confidenceScore
 } from './prediction.js';
 import {
-  renderPriceChart, renderVolumeChart, renderRSIChart, renderMAChart
+  renderPriceChart, renderVolumeChart, renderRSIChart, renderMAChart,
+  renderLiveChart, appendLivePricePoint
 } from './charts.js';
 import { renderFearGreedWidget, computeSentiment } from './sentiment.js';
 import { detectWhaleActivity, getGainersLosers } from './whale.js';
@@ -32,6 +34,20 @@ let currentDays     = 30;
 let refreshTimer    = null;
 let refreshCountdown = 30;
 const WALLET_ADDRESS = 'FYpgseqgGkE2eHsTxz3M7u4JeqhFCoo5Y7EvYLpRZqoT';
+
+// Live feed state
+let livePriceTicks   = [];
+let lastLivePrice    = 0;
+let wsConnected      = false;
+let fullRefreshTimer = null;
+let fullRefreshCountdown = 60;
+
+// Dashboard refresh interval in seconds
+const FULL_REFRESH_INTERVAL = 60;
+
+// Fallback coin IDs for quick-stats when top coins endpoint fails
+const FALLBACK_COIN_IDS  = ['bitcoin', 'ethereum', 'solana', 'dogecoin', 'binancecoin'];
+const FALLBACK_COIN_SYMBOLS = { bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL', dogecoin: 'DOGE', binancecoin: 'BNB' };
 
 /* ------------------------------------------------------------------ */
 /* Page Detection                                                       */
@@ -146,6 +162,20 @@ async function initIndexPage() {
   // Load quick stats (top 5)
   renderQuickStats();
 
+  // Wire up hero BTC live ticker via Binance WebSocket
+  const heroBtcEl = document.getElementById('hero-btc-price');
+  const wsIndexEl = document.getElementById('ws-status-index');
+  if (heroBtcEl) {
+    startBinanceWS('BTC', (tick) => {
+      if (!tick) {
+        if (wsIndexEl) { wsIndexEl.className = 'ws-dot ws-delayed'; wsIndexEl.title = 'Delayed data'; }
+        return;
+      }
+      if (wsIndexEl) { wsIndexEl.className = 'ws-dot ws-live'; wsIndexEl.title = 'Live data'; }
+      heroBtcEl.textContent = formatPrice(tick.price);
+    });
+  }
+
   // Hero search autocomplete
   const heroInput = document.getElementById('hero-search');
   const heroDrop  = document.getElementById('hero-dropdown');
@@ -186,8 +216,28 @@ async function renderQuickStats() {
   const container = document.getElementById('quick-stats');
   if (!container) return;
 
-  const coins = await fetchTopCoins(5);
-  if (!coins || !coins.length) return;
+  // Show skeletons while loading
+  container.innerHTML = Array(5).fill('<div class="quick-stat-item skeleton-stat"><div class="skeleton" style="width:60px;height:14px;margin-bottom:4px"></div><div class="skeleton" style="width:80px;height:18px"></div></div>').join('');
+
+  let coins = await fetchTopCoins(5);
+
+  // Fallback to simple price if top coins fails
+  if (!coins || !coins.length) {
+    try {
+      const simple = await fetchCoinGeckoSimplePrice(FALLBACK_COIN_IDS);
+      coins = Object.entries(simple).map(([id, data]) => ({
+        symbol: FALLBACK_COIN_SYMBOLS[id] || id,
+        name: id,
+        current_price: data.usd,
+        price_change_percentage_24h: data.usd_24h_change
+      }));
+    } catch { /* ignore */ }
+  }
+
+  if (!coins || !coins.length) {
+    container.innerHTML = '<div class="quick-stat-offline">⚠️ Live data temporarily unavailable</div>';
+    return;
+  }
 
   container.innerHTML = coins.map(coin => {
     const chg = formatPercent(coin.price_change_percentage_24h);
@@ -338,6 +388,10 @@ async function loadDashboardData(coinId, symbol = '') {
     const whaleAlerts = await detectWhaleActivity(symbol || marketData.symbol?.toUpperCase() || 'BTC');
     renderWhaleAlerts(whaleAlerts);
 
+    // Start live WebSocket feed
+    const liveSymbol = (symbol || marketData.symbol || 'BTC').toUpperCase();
+    startLiveFeed(liveSymbol);
+
   } catch (err) {
     console.error('Dashboard load error:', err);
     showToast('Failed to load dashboard data', 'error');
@@ -424,12 +478,15 @@ function renderPredictionCards(currentPrice, prices, prediction, rsi, macd, ma7,
 
   const pred1h = currentPrice * (1 + _hourlyDrift(prices) * 1);
   const pred24h = prediction.prices[0] ?? currentPrice;
-  const pred7d  = prediction.prices[6] ?? currentPrice;
+  // Fix: clamp index to valid range to avoid undefined
+  const pred7d  = prediction.prices.length > 0
+    ? prediction.prices[Math.min(6, prediction.prices.length - 1)]
+    : currentPrice;
 
   const timeframes = [
-    { label: '1 Hour',  price: pred1h,  conf: Math.round(conf * 0.9) },
-    { label: '24 Hours',price: pred24h, conf: conf },
-    { label: '7 Days',  price: pred7d,  conf: Math.round(conf * 0.75) }
+    { id: '1h',  label: '1 Hour',  price: pred1h,  conf: Math.round(conf * 0.9) },
+    { id: '24h', label: '24 Hours',price: pred24h, conf: conf },
+    { id: '7d',  label: '7 Days',  price: pred7d,  conf: Math.round(conf * 0.75) }
   ];
 
   container.innerHTML = timeframes.map(tf => {
@@ -439,7 +496,7 @@ function renderPredictionCards(currentPrice, prices, prediction, rsi, macd, ma7,
     const sigCls = signal === 'BUY' ? 'signal-buy' : signal === 'SELL' ? 'signal-sell' : 'signal-hold';
     const sigEmoji = signal === 'BUY' ? '🟢' : signal === 'SELL' ? '🔴' : '🟡';
     return `
-      <div class="prediction-card animate-fade-in">
+      <div class="prediction-card animate-fade-in" data-timeframe="${tf.id}">
         <div class="prediction-timeframe">Next ${tf.label}</div>
         <div class="prediction-price">${formatPrice(tf.price)}</div>
         <div class="prediction-change ${chgFmt.cls}">${chgFmt.text}</div>
@@ -568,20 +625,104 @@ function renderWhaleAlerts(alerts) {
 /* Auto Refresh                                                         */
 /* ------------------------------------------------------------------ */
 function startAutoRefresh() {
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshCountdown = 30;
+  if (fullRefreshTimer) clearInterval(fullRefreshTimer);
+  fullRefreshCountdown = FULL_REFRESH_INTERVAL;
+  // Keep legacy refreshCountdown in sync for countdown display
+  refreshCountdown = FULL_REFRESH_INTERVAL;
 
-  refreshTimer = setInterval(async () => {
-    refreshCountdown--;
+  fullRefreshTimer = setInterval(async () => {
+    fullRefreshCountdown--;
+    refreshCountdown = fullRefreshCountdown;
     const el = document.getElementById('refresh-countdown');
-    if (el) el.textContent = refreshCountdown + 's';
+    if (el) el.textContent = fullRefreshCountdown + 's';
 
-    if (refreshCountdown <= 0) {
-      refreshCountdown = 30;
+    if (fullRefreshCountdown <= 0) {
+      fullRefreshCountdown = FULL_REFRESH_INTERVAL;
+      refreshCountdown = FULL_REFRESH_INTERVAL;
       clearCache();
       await loadDashboardData(selectedCoin.id, selectedCoin.symbol);
     }
   }, 1000);
+}
+
+/* ------------------------------------------------------------------ */
+/* Live Feed (Binance WebSocket)                                        */
+/* ------------------------------------------------------------------ */
+function startLiveFeed(symbol) {
+  stopLiveFeed();
+  // Initialize live chart
+  renderLiveChart('live-chart');
+
+  const wsStatusEl = document.getElementById('ws-status');
+
+  startBinanceWS(symbol, (tick) => {
+    if (!tick) {
+      wsConnected = false;
+      if (wsStatusEl) { wsStatusEl.className = 'ws-dot ws-delayed'; wsStatusEl.title = 'Delayed data'; }
+      return;
+    }
+
+    wsConnected = true;
+    if (wsStatusEl) { wsStatusEl.className = 'ws-dot ws-live'; wsStatusEl.title = 'Live data'; }
+
+    const prevPrice = lastLivePrice;
+    lastLivePrice = tick.price;
+    livePriceTicks.push(tick.price);
+    if (livePriceTicks.length > 200) livePriceTicks.shift();
+
+    // Update price display with flash animation
+    const priceEl = document.getElementById('live-price-display');
+    if (priceEl) {
+      priceEl.textContent = formatPrice(tick.price);
+      const flashClass = tick.price >= prevPrice ? 'price-flash-up' : 'price-flash-down';
+      priceEl.classList.remove('price-flash-up', 'price-flash-down');
+      void priceEl.offsetWidth; // force reflow to restart animation
+      priceEl.classList.add(flashClass);
+      setTimeout(() => priceEl.classList.remove(flashClass), 400);
+    }
+
+    // Update 24h change display
+    const changeEl = document.getElementById('live-change-display');
+    if (changeEl) {
+      const chg = formatPercent(tick.change24h);
+      changeEl.textContent = chg.text;
+      changeEl.className = `price-change-live ${chg.cls}`;
+    }
+
+    // Show LIVE badge
+    const badgeEl = document.getElementById('live-price-badge');
+    if (badgeEl) badgeEl.style.display = 'inline-flex';
+
+    // Append to live chart
+    const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    appendLivePricePoint('live-chart', tick.price, now);
+
+    // Update 1h prediction card with live price
+    update1hPrediction(tick.price);
+  });
+}
+
+function stopLiveFeed() {
+  stopBinanceWS();
+  wsConnected = false;
+  livePriceTicks = [];
+}
+
+function update1hPrediction(livePrice) {
+  const card1h = document.querySelector('[data-timeframe="1h"]');
+  if (!card1h) return;
+  const prices = livePriceTicks.length >= 5 ? livePriceTicks : [livePrice];
+  // Use micro-prediction for next tick, blended with hourly drift estimate
+  const { nextPrice } = predictNextTick(prices);
+  const pred1h = prices.length >= 5
+    ? livePrice * (1 + _hourlyDrift(prices))
+    : nextPrice;
+  const chg = ((pred1h - livePrice) / livePrice) * 100;
+  const chgFmt = formatPercent(chg);
+  const priceEl = card1h.querySelector('.prediction-price');
+  const changeEl = card1h.querySelector('.prediction-change');
+  if (priceEl) priceEl.textContent = formatPrice(pred1h);
+  if (changeEl) { changeEl.textContent = chgFmt.text; changeEl.className = `prediction-change ${chgFmt.cls}`; }
 }
 
 /* ------------------------------------------------------------------ */

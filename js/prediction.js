@@ -22,6 +22,19 @@ export function predictPrices(historicalPrices, steps = 7) {
     return { prices: [], confidence: 0 };
   }
 
+  // Simple fallback for very short price history
+  if (historicalPrices.length < 15) {
+    const last = historicalPrices[historicalPrices.length - 1];
+    const first = historicalPrices[0];
+    const dailyChange = (last - first) / historicalPrices.length;
+    const predicted = [];
+    for (let s = 1; s <= steps; s++) {
+      // Dampen by 30% to avoid over-projecting with limited data
+      predicted.push(Math.max(0, last + dailyChange * s * 0.7));
+    }
+    return { prices: predicted, confidence: 25 };
+  }
+
   const prices = historicalPrices.slice(-90); // cap at 90 data points
   const n      = prices.length;
 
@@ -298,4 +311,35 @@ function _ema(data, period) {
     ema.push(data[i] * k + ema[ema.length - 1] * (1 - k));
   }
   return ema;
+}
+
+/* ------------------------------------------------------------------ */
+/* Live Tick Micro-Prediction                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Fast micro-prediction for live 1s tick updates
+ * @param {number[]} livePriceTicks  Array of recent price ticks (newest last)
+ * @returns {{ nextPrice: number, direction: 'up'|'down'|'flat', microConfidence: number }}
+ */
+export function predictNextTick(livePriceTicks) {
+  if (!livePriceTicks || livePriceTicks.length < 3) {
+    return { nextPrice: livePriceTicks?.slice(-1)[0] ?? 0, direction: 'flat', microConfidence: 0 };
+  }
+  const ticks = livePriceTicks.slice(-20);
+  const n = ticks.length;
+  // Compute exponentially weighted velocity (decay=0.2 gives ~20x more weight to newest vs oldest tick)
+  let totalWeight = 0, weightedVelocity = 0;
+  for (let i = 1; i < n; i++) {
+    const w = Math.exp(0.2 * i);
+    const v = ticks[i] - ticks[i - 1];
+    weightedVelocity += w * v;
+    totalWeight += w;
+  }
+  const velocity = totalWeight > 0 ? weightedVelocity / totalWeight : 0;
+  // Dampen velocity by 70% to reduce over-shooting on noisy tick data
+  const nextPrice = ticks[n - 1] + velocity * 0.3;
+  const direction = Math.abs(velocity) < 0.0001 * ticks[n - 1] ? 'flat' : velocity > 0 ? 'up' : 'down';
+  const microConfidence = Math.min(95, Math.max(20, 50 + (n / 20) * 30));
+  return { nextPrice: Math.max(0, nextPrice), direction, microConfidence };
 }
